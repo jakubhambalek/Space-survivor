@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Space Survivor - Pronásledující nepřátelé</title>
+    <title>Stellar Protocol</title>
     <style>
         * {
             margin: 0;
@@ -198,6 +198,86 @@
             font-size: 36px;
             text-shadow: 0 0 10px #ff0;
         }
+
+        /* LEVEL UP MODAL */
+        #levelUpModal {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .levelup-container {
+            text-align: center;
+            animation: scaleIn 0.5s ease-out;
+        }
+
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.7); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .levelup-title {
+            font-size: 56px;
+            color: #0f0;
+            text-shadow: 0 0 20px #0f0, 0 0 40px #0f0, 0 0 60px #0f0;
+            margin-bottom: 20px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .levelup-subtitle {
+            font-size: 24px;
+            color: #fff;
+            margin-bottom: 40px;
+        }
+
+        .ability-choices {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+        }
+
+        .ability-card {
+            width: 280px;
+            padding: 30px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%);
+            border: 3px solid #0a0;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+
+        .ability-card:hover {
+            transform: translateY(-10px) scale(1.05);
+            border-color: #0ff;
+            box-shadow: 0 0 40px rgba(0, 255, 255, 0.6);
+        }
+
+        .ability-name {
+            font-size: 28px;
+            color: #0ff;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .ability-level {
+            font-size: 20px;
+            color: #ff0;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #ff0;
+        }
+
+        .ability-desc {
+            font-size: 16px;
+            color: #ddd;
+            line-height: 1.5;
+        }
     </style>
 </head>
 <body>
@@ -206,7 +286,7 @@
     <!-- MENU -->
     <div id="menu" style="display: none;">
         <div class="menu-container">
-            <h1 class="menu-title">SPACE SURVIVOR</h1>
+            <h1 class="menu-title">STELLAR PROTOCOL</h1>
             <div class="menu-subtitle">Přežij útok vesmírných draků!</div>
             <div class="menu-buttons">
                 <button class="menu-btn" id="btnNewGame">🚀 Nová hra</button>
@@ -234,13 +314,34 @@
         </div>
     </div>
     
+    <!-- LEVEL UP MODAL -->
+    <div id="levelUpModal" style="display: none;">
+        <div class="levelup-container">
+            <h1 class="levelup-title">⬆️ LEVEL UP! ⬆️</h1>
+            <div class="levelup-subtitle">Vyber si vylepšení:</div>
+            <div id="abilityChoices" class="ability-choices">
+                <!-- Ability cards will be inserted here -->
+            </div>
+        </div>
+    </div>
+    
     <canvas id="gameCanvas" width="1200" height="800" style="display: none;"></canvas>
     
     <div class="hud" id="hud" style="display: none;">
         <div id="levelInfo">Level: 1/100</div>
         <div id="healthInfo">HP: 100/100</div>
         <div id="scoreInfo">Skóre: 0</div>
-        <div style="margin-top: 10px; color: #ff0;">WASD - Pohyb</div>
+        <div id="xpInfo" style="margin-top: 10px;">
+            <div style="color: #ff0; font-size: 12px; margin-bottom: 3px;">XP: <span id="xpText">0/50</span></div>
+            <div style="background: rgba(0,0,0,0.8); width: 200px; height: 8px; border: 1px solid #0a0; border-radius: 4px;">
+                <div id="xpBar" style="background: linear-gradient(90deg, #0f0, #ff0); width: 0%; height: 100%; border-radius: 3px; transition: width 0.3s;"></div>
+            </div>
+        </div>
+        <div id="activeAbilities" style="margin-top: 15px; font-size: 11px; color: #0ff; max-width: 220px;">
+            <div style="margin-bottom: 5px; font-weight: bold;">Schopnosti:</div>
+            <div id="abilityList" style="display: flex; flex-wrap: wrap; gap: 5px;"></div>
+        </div>
+        <div style="margin-top: 15px; color: #ff0;">WASD - Pohyb</div>
         <div style="margin-top: 5px; color: #0ff; font-size: 12px;">HD vesmírné pozadí!</div>
     </div>
 
@@ -290,14 +391,18 @@
 
         class Game {
             constructor() {
-                this.state = 'MENU'; // MENU, PLAYING, GAME_OVER, LABORATORY, SETTINGS
+                this.state = 'MENU'; // MENU, PLAYING, GAME_OVER, LABORATORY, SETTINGS, LEVEL_UP
                 this.player = null;
                 this.enemies = [];
                 this.projectiles = [];
                 this.particles = [];
+                this.lasers = []; // Continuous lasers
                 this.score = 0;
                 this.finalScore = 0;
                 this.level = 1;
+                this.xp = 0;
+                this.xpToNextLevel = 50; // Sníženo pro testování (původně 100)
+                this.abilities = {}; // {abilityId: level} např. {doubleShot: 2, rapidFire: 1}
                 this.keys = {};
                 this.running = false;
                 this.lastTime = 0;
@@ -353,18 +458,28 @@
                 this.enemies = [];
                 this.projectiles = [];
                 this.particles = [];
+                this.lasers = []; // Reset lasers
                 this.score = 0;
                 this.level = 1;
+                this.xp = 0;
+                this.xpToNextLevel = 50; // Sníženo pro testování
+                this.abilities = {};
                 this.player = new Player();
                 this.running = true;
                 this.lastTime = performance.now();
                 this.updateUI();
-                this.gameLoop();
+                // NEBUDEME volat gameLoop() znovu - už běží!
             }
 
             showMenu() {
                 this.state = 'MENU';
                 this.running = false;
+                // Vyčisti herní data
+                this.enemies = [];
+                this.projectiles = [];
+                this.particles = [];
+                this.lasers = []; // Reset lasers
+                this.player = null;
                 this.updateUI();
             }
 
@@ -372,6 +487,9 @@
                 this.state = 'GAME_OVER';
                 this.running = false;
                 this.finalScore = this.score;
+                // Odstraň nepřátele a projektily, ale nech particles (kouře/výbuchy)
+                this.enemies = [];
+                this.projectiles = [];
                 this.updateUI();
             }
 
@@ -417,7 +535,7 @@
                     this.bgScrollY = 0;
                 }
 
-                // Herní logika jen při hraní
+                // Herní logika jen při hraní (ne v LEVEL_UP)
                 if (this.state !== 'PLAYING' || !this.running || !this.player) return;
 
                 this.player.update(deltaTime, this.keys);
@@ -432,10 +550,17 @@
                     enemy.update(deltaTime, this.player);
                     if (enemy.isDead) {
                         this.score += 10;
+                        this.xp += 20; // +20 XP za zabití
+                        this.checkLevelUp();
                         this.createExplosion(enemy.x, enemy.y, enemy.type);
                         return false;
                     }
                     return enemy.y < canvas.height + 100;
+                });
+
+                // Update lasers (damage enemies in laser path)
+                this.lasers.forEach(laser => {
+                    laser.update(deltaTime, this.enemies);
                 });
 
                 // Update projectiles
@@ -507,6 +632,20 @@
                         enemy.isDead = true;
                         this.createExplosion(enemy.x, enemy.y, enemy.type);
                         if (this.player.health <= 0) {
+                            // Velká exploze lodě!
+                            this.createExplosion(this.player.x, this.player.y, 0); // Type 0 = player ship
+                            // Ještě větší exploze
+                            for (let i = 0; i < 50; i++) {
+                                const angle = Math.random() * Math.PI * 2;
+                                const speed = 50 + Math.random() * 200;
+                                this.particles.push(new Particle(
+                                    this.player.x, 
+                                    this.player.y, 
+                                    Math.cos(angle) * speed, 
+                                    Math.sin(angle) * speed,
+                                    '#0ff'
+                                ));
+                            }
                             this.gameOver();
                         }
                     }
@@ -517,21 +656,213 @@
                 document.getElementById('levelInfo').textContent = `Level: ${this.level}/100`;
                 document.getElementById('healthInfo').textContent = `HP: ${Math.max(0, this.player.health)}/100`;
                 document.getElementById('scoreInfo').textContent = `Skóre: ${this.score}`;
+                document.getElementById('xpText').textContent = `${this.xp}/${this.xpToNextLevel}`;
+                const xpPercent = (this.xp / this.xpToNextLevel) * 100;
+                document.getElementById('xpBar').style.width = `${xpPercent}%`;
+                
+                // Zobraz aktivní schopnosti
+                const abilityList = document.getElementById('abilityList');
+                abilityList.innerHTML = '';
+                
+                const abilityIcons = {
+                    doubleShot: '🔫',
+                    rapidFire: '⚡',
+                    laser: '🔴',
+                    shield: '🔵',
+                    turbo: '💨',
+                    drone: '🤖'
+                };
+                
+                Object.entries(this.abilities).forEach(([id, level]) => {
+                    const badge = document.createElement('span');
+                    badge.style.cssText = 'background: rgba(0,255,0,0.2); padding: 2px 6px; border-radius: 3px; border: 1px solid #0a0; font-size: 10px;';
+                    badge.textContent = `${abilityIcons[id] || '⭐'}${level}`;
+                    badge.title = id;
+                    abilityList.appendChild(badge);
+                });
+            }
+
+            checkLevelUp() {
+                if (this.xp >= this.xpToNextLevel) {
+                    this.xp -= this.xpToNextLevel;
+                    this.level++;
+                    // Každý level potřebuje o 133% více XP než předchozí (2.33x)
+                    this.xpToNextLevel = Math.floor(50 * Math.pow(2.33, this.level - 1));
+                    this.showLevelUpScreen();
+                }
+            }
+
+            showLevelUpScreen() {
+                this.state = 'LEVEL_UP';
+                this.running = false; // Pauza hry
+                
+                // Vyber 3 náhodné schopnosti které lze upgradovat
+                const availableAbilities = this.getAvailableAbilities();
+                const selected = this.selectRandomAbilities(availableAbilities, 3);
+                
+                this.displayAbilityChoices(selected);
+            }
+
+            getAvailableAbilities() {
+                // Definice všech schopností
+                const allAbilities = [
+                    {id: 'doubleShot', name: '🔫🔫 Dvojitá Palba', category: 'attack', maxLevel: 3},
+                    {id: 'rapidFire', name: '⚡ Rychlá Palba', category: 'attack', maxLevel: 3},
+                    {id: 'laser', name: '🔴 Laser Beam', category: 'attack', maxLevel: 3},
+                    {id: 'shield', name: '🔵 Energetický Štít', category: 'defense', maxLevel: 3},
+                    {id: 'turbo', name: '💨 Turbo Motor', category: 'mobility', maxLevel: 3},
+                    {id: 'drone', name: '🤖 Dron Pomocník', category: 'special', maxLevel: 3},
+                ];
+
+                // Filtruj jen ty které nejsou na max levelu
+                return allAbilities.filter(ability => {
+                    const currentLevel = this.abilities[ability.id] || 0;
+                    return currentLevel < ability.maxLevel;
+                });
+            }
+
+            selectRandomAbilities(available, count) {
+                const shuffled = [...available].sort(() => Math.random() - 0.5);
+                return shuffled.slice(0, Math.min(count, shuffled.length));
+            }
+
+            displayAbilityChoices(abilities) {
+                const modal = document.getElementById('levelUpModal');
+                const choicesDiv = document.getElementById('abilityChoices');
+                
+                choicesDiv.innerHTML = '';
+                
+                abilities.forEach(ability => {
+                    const currentLevel = this.abilities[ability.id] || 0;
+                    const nextLevel = currentLevel + 1;
+                    
+                    const card = document.createElement('div');
+                    card.className = 'ability-card';
+                    
+                    let levelIndicator = '';
+                    if (currentLevel > 0) {
+                        levelIndicator = `<div style="font-size: 14px; color: #0a0; margin-bottom: 10px;">Aktuálně: Level ${currentLevel}</div>`;
+                    }
+                    
+                    card.innerHTML = `
+                        <div class="ability-name">${ability.name}</div>
+                        ${levelIndicator}
+                        <div class="ability-level">➜ Level ${nextLevel}</div>
+                        <div class="ability-desc">${this.getAbilityDescription(ability.id, nextLevel)}</div>
+                    `;
+                    
+                    card.addEventListener('click', () => this.selectAbility(ability.id));
+                    choicesDiv.appendChild(card);
+                });
+                
+                modal.style.display = 'flex';
+            }
+
+            getAbilityDescription(id, level) {
+                const descriptions = {
+                    doubleShot: {
+                        1: 'Střílej 2 projektily naráz',
+                        2: 'Střílej 3 projektily naráz',
+                        3: 'Střílej 4 projektily naráz'
+                    },
+                    rapidFire: {
+                        1: '5 výstřelů za sekundu',
+                        2: '6 výstřelů za sekundu',
+                        3: '7.2 výstřelů za sekundu'
+                    },
+                    laser: {
+                        1: 'Paprsek 150 DPS (2s ON / 3s OFF)',
+                        2: 'Paprsek 180 DPS (2s ON / 3s OFF)',
+                        3: 'Paprsek 216 DPS (2s ON / 3s OFF)'
+                    },
+                    shield: {
+                        1: '50 HP štítu, regenerace 5 HP/s',
+                        2: '60 HP štítu, regenerace 6 HP/s',
+                        3: '72 HP štítu, regenerace 7.2 HP/s'
+                    },
+                    turbo: {
+                        1: '+25% rychlost pohybu',
+                        2: '+30% rychlost pohybu',
+                        3: '+36% rychlost pohybu'
+                    },
+                    drone: {
+                        1: '1 dron pomocník (15 damage)',
+                        2: '2 drony pomocníci (18 damage)',
+                        3: '3 drony pomocníci (21 damage)'
+                    }
+                };
+                
+                return descriptions[id]?.[level] || 'Neznámý upgrade';
+            }
+
+            selectAbility(abilityId) {
+                // Zvýš level schopnosti
+                this.abilities[abilityId] = (this.abilities[abilityId] || 0) + 1;
+                
+                // Aplikuj efekt
+                this.applyAbility(abilityId, this.abilities[abilityId]);
+                
+                // Skryj modal a pokračuj ve hře
+                document.getElementById('levelUpModal').style.display = 'none';
+                this.state = 'PLAYING';
+                this.running = true;
+                this.lastTime = performance.now();
+                this.updateHUD(); // Update XP bar
+            }
+
+            applyAbility(id, level) {
+                // Tady aplikujeme efekty schopností na hráče/hru
+                switch(id) {
+                    case 'doubleShot':
+                        this.player.multiShot = level + 1; // Level 1 = 2 shots, Level 2 = 3 shots
+                        break;
+                    case 'rapidFire':
+                        const fireRates = [0.20, 0.167, 0.139];
+                        this.player.fireRate = fireRates[level - 1];
+                        break;
+                    case 'laser':
+                        const laserDPS = [150, 180, 216]; // 5x vyšší než původně
+                        if (this.lasers.length === 0) {
+                            // První laser - vytvoř
+                            this.lasers.push(new Laser(laserDPS[level - 1]));
+                        } else {
+                            // Upgrade existujícího laseru
+                            this.lasers[0].dps = laserDPS[level - 1];
+                        }
+                        break;
+                    case 'turbo':
+                        const speedBoosts = [1.25, 1.30, 1.36];
+                        this.player.speed = 300 * speedBoosts[level - 1];
+                        break;
+                    // Další schopnosti budeme implementovat postupně
+                }
             }
 
             draw() {
-                // Draw scrolling procedural space background
+                // Vyčisti canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw scrolling procedural space background (VŽDY)
                 const bgY = this.bgScrollY % SPACE_BG.height;
                 
                 // Draw two copies for seamless scrolling
                 ctx.drawImage(SPACE_BG, 0, bgY);
                 ctx.drawImage(SPACE_BG, 0, bgY - SPACE_BG.height);
 
-                // Draw game objects
-                this.particles.forEach(p => p.draw(ctx));
-                this.projectiles.forEach(p => p.draw(ctx));
-                this.enemies.forEach(e => e.draw(ctx));
-                if (this.player) this.player.draw(ctx);
+                // Draw game objects při hraní NEBO level up (zamrzlý stav)
+                if ((this.state === 'PLAYING' || this.state === 'LEVEL_UP') && this.player) {
+                    this.particles.forEach(p => p.draw(ctx));
+                    this.projectiles.forEach(p => p.draw(ctx));
+                    this.enemies.forEach(e => e.draw(ctx));
+                    this.lasers.forEach(l => l.draw(ctx, this.player)); // Lasery před hráčem
+                    this.player.draw(ctx);
+                }
+                
+                // Při game over zobraz particles a mrtvou loď (dramatický efekt)
+                if (this.state === 'GAME_OVER') {
+                    this.particles.forEach(p => p.draw(ctx));
+                    if (this.player) this.player.draw(ctx);
+                }
             }
 
             gameLoop(timestamp = 0) {
@@ -551,8 +882,9 @@
                 this.y = canvas.height - 150;
                 this.speed = 300;
                 this.health = 100;
-                this.fireTimer = 0;
+                this.fireTimer = 0.2; // Začne na fireRate aby vystřelil OKAMŽITĚ
                 this.fireRate = 0.2;
+                this.multiShot = 1; // Kolik projektilů naráz (default 1)
             }
 
             update(deltaTime, keys) {
@@ -579,7 +911,25 @@
             }
 
             shoot() {
-                game.projectiles.push(new Projectile(this.x, this.y - 60, 0, -600, 25));
+                if (this.multiShot === 1) {
+                    // Jediný výstřel
+                    game.projectiles.push(new Projectile(this.x, this.y - 60, 0, -600, 25));
+                } else {
+                    // Multi-shot (spread pattern)
+                    const spreadAngles = {
+                        2: [-10, 10],
+                        3: [-15, 0, 15],
+                        4: [-20, -7, 7, 20]
+                    };
+                    
+                    const angles = spreadAngles[this.multiShot] || [0];
+                    angles.forEach(angle => {
+                        const rad = angle * Math.PI / 180;
+                        const vx = Math.sin(rad) * 600;
+                        const vy = -Math.cos(rad) * 600;
+                        game.projectiles.push(new Projectile(this.x, this.y - 60, vx, vy, 25));
+                    });
+                }
             }
 
             draw(ctx) {
@@ -742,6 +1092,87 @@
                 ctx.fillStyle = '#fff';
                 ctx.fillRect(this.x - 2, this.y - 10, 4, 20);
                 ctx.shadowBlur = 0;
+            }
+        }
+
+        // ===== LASER CLASS =====
+        class Laser {
+            constructor(dps) {
+                this.dps = dps;
+                this.activeTime = 0; // Čas aktivního laseru
+                this.cycleTime = 5; // 2s ON + 3s OFF = 5s celkem
+                this.onDuration = 2; // 2 sekundy střílí
+                this.offDuration = 3; // 3 sekundy pauza
+                this.active = true; // Začne aktivní
+            }
+
+            update(deltaTime, enemies) {
+                // Cyklus ON/OFF
+                this.activeTime += deltaTime;
+                
+                if (this.activeTime < this.onDuration) {
+                    // ON fáze - střílí
+                    this.active = true;
+                    
+                    // Damage enemies in laser path
+                    enemies.forEach(enemy => {
+                        // Collision: enemy is in line with laser (vertical beam from player)
+                        const dx = Math.abs(enemy.x - game.player.x);
+                        if (dx < 30 && enemy.y < game.player.y) {
+                            enemy.health -= this.dps * deltaTime;
+                        }
+                    });
+                } else if (this.activeTime < this.cycleTime) {
+                    // OFF fáze - pauza
+                    this.active = false;
+                } else {
+                    // Reset cyklu
+                    this.activeTime = 0;
+                    this.active = true;
+                }
+            }
+
+            draw(ctx, player) {
+                ctx.save();
+                
+                // Warning před aktivací (poslední 0.5s OFF fáze)
+                if (!this.active && this.activeTime > this.onDuration + this.offDuration - 0.5) {
+                    const pulseAlpha = Math.sin(Date.now() / 100) * 0.3 + 0.5;
+                    ctx.fillStyle = `rgba(255, 0, 0, ${pulseAlpha * 0.3})`;
+                    ctx.fillRect(player.x - 15, player.y - 60, 30, 10);
+                }
+                
+                // Kresli laser jen pokud je aktivní
+                if (!this.active) {
+                    ctx.restore();
+                    return;
+                }
+                
+                // Draw continuous laser beam
+                const gradient = ctx.createLinearGradient(player.x - 2, player.y - 50, player.x + 2, 0);
+                gradient.addColorStop(0, 'rgba(255, 0, 0, 0.9)');
+                gradient.addColorStop(1, 'rgba(255, 50, 50, 0.4)');
+                
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = 12;
+                ctx.shadowBlur = 30;
+                ctx.shadowColor = '#f00';
+                ctx.beginPath();
+                ctx.moveTo(player.x, player.y - 50);
+                ctx.lineTo(player.x, -50);
+                ctx.stroke();
+                
+                // Inner bright core
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 4;
+                ctx.shadowBlur = 20;
+                ctx.beginPath();
+                ctx.moveTo(player.x, player.y - 50);
+                ctx.lineTo(player.x, -50);
+                ctx.stroke();
+                
+                ctx.shadowBlur = 0;
+                ctx.restore();
             }
         }
 
